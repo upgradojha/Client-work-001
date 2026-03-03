@@ -25,6 +25,17 @@ const RASHIS = [
   { id: 11, name: 'कुंभ (Aquarius)' }, { id: 12, name: 'मीन (Pisces)' },
 ];
 
+const ARROW_COLORS = [
+  '#dc2626', // red-600
+  '#2563eb', // blue-600
+  '#16a34a', // green-600
+  '#ca8a04', // amber-600
+  '#db2777', // pink-600
+  '#9333ea', // purple-600
+  '#0891b2', // cyan-600
+  '#ea580c', // orange-600
+];
+
 const HOUSES = [
   { id: 1, points: "200,0 300,100 200,200 100,100", center: { x: 200, y: 105 }, rashiPos: { x: 200, y: 20 }, desc: "भाव 1: लग्न, शरीर, आत्मा (Self, Body)" },
   { id: 2, points: "0,0 200,0 100,100", center: { x: 100, y: 40 }, rashiPos: { x: 40, y: 20 }, desc: "भाव 2: धन, परिवार, वाणी (Wealth, Family)" },
@@ -45,11 +56,18 @@ export default function App() {
   const [lagna, setLagna] = useState(1);
   const [placements, setPlacements] = useState({}); // { planetId: houseId }
   const [selectedPlanet, setSelectedPlanet] = useState(null);
-  const [hoverInfo, setHoverInfo] = useState("कुंडली बनाने के लिए ग्रहों को भावों में खींचें या क्लिक करें।");
+  const [hoverInfo, setHoverInfo] = useState("कुंडली बनाने के लिए ग्रहों को भावों में खींचें या क्लिक करें। तीर जोड़ने के लिए दो भावों पर क्लिक करें।");
   const [savedCharts, setSavedCharts] = useState([]);
   const [previewImage, setPreviewImage] = useState(null);
+  const [arrows, setArrows] = useState([]); // Array of {id, fromHouseId, toHouseId, color}
+  const [selectedHouseForArrow, setSelectedHouseForArrow] = useState(null); // First house selected for arrow
 
   const svgRef = useRef(null);
+
+  // Get next color for arrow
+  const getNextArrowColor = () => {
+    return ARROW_COLORS[arrows.length % ARROW_COLORS.length];
+  };
 
   // --- LOGIC ---
 
@@ -94,9 +112,30 @@ export default function App() {
 
   const handleHouseClick = (houseId) => {
     if (selectedPlanet) {
+      // Place planet
       setPlacements(prev => ({ ...prev, [selectedPlanet]: houseId }));
       setSelectedPlanet(null);
       setHoverInfo(HOUSES.find(h => h.id === houseId).desc);
+    } else {
+      // Arrow mode (default)
+      if (!selectedHouseForArrow) {
+        setSelectedHouseForArrow(houseId);
+        setHoverInfo(`भाव ${houseId} चयनित। तीर बनाने के लिए दूसरे भाव पर क्लिक करें। (डबल क्लिक से तीर हटाएं)`);
+      } else if (selectedHouseForArrow === houseId) {
+        setSelectedHouseForArrow(null);
+        setHoverInfo("भाव का चयन रद्द कर दिया गया।");
+      } else {
+        // Create arrow with next color
+        const newArrow = {
+          id: Date.now(),
+          fromHouseId: selectedHouseForArrow,
+          toHouseId: houseId,
+          color: getNextArrowColor()
+        };
+        setArrows([...arrows, newArrow]);
+        setSelectedHouseForArrow(null);
+        setHoverInfo(`✓ भाव ${selectedHouseForArrow} से भाव ${houseId} तक तीर जोड़ा गया।`);
+      }
     }
   };
 
@@ -112,7 +151,85 @@ export default function App() {
     setPlacements({});
     setLagna(1);
     setSelectedPlanet(null);
+    setArrows([]);
+    setSelectedHouseForArrow(null);
     setHoverInfo("कुंडली रीसेट कर दी गई है।");
+  };
+
+  const removeArrow = (arrowId) => {
+    setArrows(arrows.filter(a => a.id !== arrowId));
+  };
+
+  // Render curved arrow between two houses (simple, stays within bounds)
+  const renderArrow = (arrow) => {
+    const { id, fromHouseId, toHouseId, color } = arrow;
+    const fromHouse = HOUSES.find(h => h.id === fromHouseId);
+    const toHouse = HOUSES.find(h => h.id === toHouseId);
+    if (!fromHouse || !toHouse) return null;
+
+    const fromX = fromHouse.center.x;
+    const fromY = fromHouse.center.y;
+    const toX = toHouse.center.x;
+    const toY = toHouse.center.y;
+
+    // Shorten start and end points to start from house edges
+    const dist = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+    const startShorten = 12;
+    const endShorten = 18;
+    const dirFromX = dist > 0 ? (toX - fromX) / dist : 0;
+    const dirFromY = dist > 0 ? (toY - fromY) / dist : 0;
+
+    const adjustedFromX = fromX + dirFromX * startShorten;
+    const adjustedFromY = fromY + dirFromY * startShorten;
+    const adjustedToX = toX - dirFromX * endShorten;
+    const adjustedToY = toY - dirFromY * endShorten;
+
+    // Simple subtle curve - much less bending
+    const midX = (adjustedFromX + adjustedToX) / 2;
+    const midY = (adjustedFromY + adjustedToY) / 2;
+
+    // Very small offset for subtle curve, perpendicular to line
+    const perpX = -dirFromY * (dist * 0.08);
+    const perpY = dirFromX * (dist * 0.08);
+
+    // Constrain control point to stay within bounds
+    const controlX = Math.max(5, Math.min(395, midX + perpX));
+    const controlY = Math.max(5, Math.min(395, midY + perpY));
+
+    // Simpler path with minimal curve
+    const pathData = `M ${adjustedFromX} ${adjustedFromY} Q ${controlX} ${controlY}, ${adjustedToX} ${adjustedToY}`;
+
+    // Create marker ID unique to this arrow
+    const markerId = `arrowhead-${id}`;
+
+    return (
+      <g key={`arrow-${id}`}>
+        {/* Invisible wider path for easier clicking/double-clicking */}
+        <path
+          d={pathData}
+          fill="none"
+          stroke={color}
+          strokeWidth="14"
+          markerEnd={`url(#${markerId})`}
+          className="cursor-pointer"
+          style={{ opacity: 0, pointerEvents: 'auto' }}
+          onDoubleClick={() => {
+            removeArrow(id);
+            setHoverInfo("✓ तीर हटा दिया गया।");
+          }}
+        />
+        {/* Visible arrow path */}
+        <path
+          d={pathData}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.5"
+          markerEnd={`url(#${markerId})`}
+          className="cursor-pointer hover:opacity-75 transition-opacity pointer-events-none"
+          style={{ opacity: 0.85 }}
+        />
+      </g>
+    );
   };
 
   const saveChartToMemory = () => {
@@ -310,6 +427,34 @@ export default function App() {
             </div>
           </div>
 
+          {/* Arrow Instructions & Display */}
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-purple-100">
+            <h3 className="font-semibold text-gray-700 mb-3">तीर जानकारी ({arrows.length} जोड़े गए)</h3>
+            <div className="text-xs text-gray-600 bg-purple-50 p-3 rounded mb-3 leading-relaxed">
+              <p><strong>तीर जोड़ने के लिए:</strong> कुंडली पर दो भावों पर क्लिक करें।</p>
+              <p><strong>तीर हटाने के लिए:</strong> तीर पर डबल क्लिक करें।</p>
+              <p><strong>रंग:</strong> हर नया तीर अलग रंग में जुड़ता है।</p>
+            </div>
+            {arrows.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {arrows.map((arrow) => (
+                  <div
+                    key={arrow.id}
+                    className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200"
+                  >
+                    <div
+                      className="w-4 h-1 rounded"
+                      style={{ backgroundColor: arrow.color }}
+                    />
+                    <span className="text-sm text-gray-700">
+                      भाव {arrow.fromHouseId} → भाव {arrow.toHouseId}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Saved Charts (Session) */}
           {savedCharts.length > 0 && (
             <div className="bg-white p-5 rounded-xl shadow-sm border border-blue-100">
@@ -341,6 +486,23 @@ export default function App() {
               className="w-full max-w-[500px] h-auto bg-[#fffdf5] drop-shadow-sm"
               style={{ fontFamily: 'sans-serif' }}
             >
+              {/* Arrow Marker Definitions */}
+              <defs>
+                {arrows.map((arrow) => (
+                  <marker
+                    key={`marker-${arrow.id}`}
+                    id={`arrowhead-${arrow.id}`}
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3, 0 6" fill={arrow.color} />
+                  </marker>
+                ))}
+              </defs>
+
               {/* Outer Border */}
               <rect x="2" y="2" width="396" height="396" fill="none" stroke="#ea580c" strokeWidth="4" />
 
@@ -375,12 +537,15 @@ export default function App() {
                   textAnchor="middle"
                   alignmentBaseline="middle"
                   fontSize="14"
-                  fill="#9ca3af" // Gray color for numbers
+                  fill="#374151"
                   className="pointer-events-none select-none font-medium"
                 >
                   {getRashiForHouse(house.id)}
                 </text>
               ))}
+
+              {/* Rendered Arrows */}
+              {arrows.map(arrow => renderArrow(arrow))}
 
               {/* Placed Planets */}
               {HOUSES.map(house => (
