@@ -338,18 +338,18 @@ export default function App() {
             <svg
               ref={svgRef}
               viewBox="0 0 400 400"
-              className="w-full max-w-[500px] h-auto bg-[#fffdf5] drop-shadow-sm"
+              className="w-full max-w-[500px] h-auto bg-[#ffffff] drop-shadow-sm"
               style={{ fontFamily: 'sans-serif' }}
             >
               {/* Outer Border */}
-              <rect x="2" y="2" width="396" height="396" fill="none" stroke="#ea580c" strokeWidth="4" />
-
+              <rect x="2" y="2" width="396" height="396" fill="none" stroke="#FF4400" strokeWidth="4" />
+FF4400
               {/* Diagonals */}
-              <line x1="2" y1="2" x2="398" y2="398" stroke="#ea580c" strokeWidth="2" />
-              <line x1="398" y1="2" x2="2" y2="398" stroke="#ea580c" strokeWidth="2" />
+              <line x1="2" y1="2" x2="398" y2="398" stroke="#FF4400" strokeWidth="2" />
+              <line x1="398" y1="2" x2="2" y2="398" stroke="#FF4400" strokeWidth="2" />
 
               {/* Inner Diamond */}
-              <polygon points="200,2 398,200 200,398 2,200" fill="none" stroke="#ea580c" strokeWidth="2" />
+              <polygon points="200,2 398,200 200,398 2,200" fill="none" stroke="#FF4400" strokeWidth="2" />
 
               {/* Interactive House Polygons (Invisible, just for events) */}
               {HOUSES.map(house => (
@@ -375,7 +375,7 @@ export default function App() {
                   textAnchor="middle"
                   alignmentBaseline="middle"
                   fontSize="14"
-                  fill="#9ca3af" // Gray color for numbers
+                  fill="#374151" // Gray 700 color for numbers
                   className="pointer-events-none select-none font-medium"
                 >
                   {getRashiForHouse(house.id)}
